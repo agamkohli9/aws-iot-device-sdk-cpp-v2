@@ -20,9 +20,10 @@
 
 #include <nlohmann/json.hpp>
 #include <iostream> // For printing json stuff (overloaded to std::cout.operator<<())
-#include <fstream> // For logging
 #include <sstream>
-#include "/home/V2X-Hub/src/tmx/Asn_J2735/include/asn_j2735_r63/BasicSafetyMessage.h"
+
+#include "/home/V2X-Hub/src/tmx/tmx/j2735_messages/BasicSafetyMessage.hpp"
+#include "worker.h"
 
 using namespace Aws::Crt;
 
@@ -176,7 +177,8 @@ int main(int argc, char *argv[])
                     message->coreData.elev = 0; /** NOTE: AMAG does not give elevation, so set to 0 for all objects */
                     message->coreData.heading = obj["heading"];
 
-                    /** TODO: send message to ObjectDetectionComparisonPlugin*/
+                    // Send message to ObjectDetectionComparisonPlugin
+                    worker::send(message);
                 } 
             }
 
