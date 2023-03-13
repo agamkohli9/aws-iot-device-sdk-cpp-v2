@@ -22,7 +22,7 @@
 #include <iostream> // For printing json stuff (overloaded to std::cout.operator<<())
 #include <sstream>
 
-#include "/home/V2X-Hub/src/tmx/tmx/j2735_messages/BasicSafetyMessage.hpp"
+#include <BasicSafetyMessage.h>
 #include "worker.h"
 
 using namespace Aws::Crt;
@@ -165,25 +165,26 @@ int main(int argc, char *argv[])
                      * NOTE: Following will be hardware detection hardware specific
                     */
 
-                    char* my_str = (char *) obj["object_id"];
-                    uint8_t* my_bytes = reinterpret_cast<uint8_t *>(my_str);
+                    // Cursed pointer magic
+                    uint8_t* object_id = reinterpret_cast<uint8_t *>(&obj["object_id"].get<std::string>()[0]);
+
                     message->coreData.msgCnt = receivedCount;
-                    uint8_t  my_bytes_id[4] = {(uint8_t)1, (uint8_t)12, (uint8_t)12, (uint8_t)10};
-                    message->coreData.id.buf = my_bytes_id;
-                    message->coreData.id.size = sizeof(my_bytes_id);
+                    message->coreData.id.buf = object_id;
+                    message->coreData.id.size = sizeof(object_id);
                     message->coreData.secMark = msg_json[0]["timestamp"];
                     message->coreData.lat = obj["lat"];
                     message->coreData.Long = obj["lon"];
                     message->coreData.elev = 0; /** NOTE: AMAG does not give elevation, so set to 0 for all objects */
                     message->coreData.heading = obj["heading"];
 
+
+                    /** TODO: */
                     // Send message to ObjectDetectionComparisonPlugin
-                    worker::send(message);
                 } 
             }
 
-                receiveSignal.notify_all();
-            };
+            receiveSignal.notify_all();
+        };
 
         /*
          * Subscribe for incoming publish messages on topic.
