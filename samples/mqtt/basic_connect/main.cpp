@@ -22,8 +22,7 @@
 #include <iostream> // For printing json stuff (overloaded to std::cout.operator<<())
 #include <sstream>
 
-#include <BasicSafetyMessage.h>
-#include "worker.h"
+#define PAYLOAD_SIZE 1024
 
 using namespace Aws::Crt;
 
@@ -31,6 +30,27 @@ using json = nlohmann::json;
 
 int main(int argc, char *argv[])
 {
+    /************************ Setup the UDP connection******************/
+	int sockfd;
+	char buffer[PAYLOAD_SIZE];
+	struct sockaddr_in	 servaddr;
+
+	// Creating socket file descriptor
+	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+		perror("socket creation failed");
+		exit(EXIT_FAILURE);
+	}
+
+	memset(&servaddr, 0, sizeof(servaddr));
+	
+	// Filling server information
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(PORT);
+	servaddr.sin_addr.s_addr = INADDR_ANY;
+	
+	int n;
+	socklen_t len;
+
     /************************ Setup the Lib ****************************/
     /*
      * Do the global initialization for the API.
@@ -146,41 +166,16 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "Publish #%d received on topic %s\n", receivedCount, topic.c_str());
                 fprintf(stdout, "Message: ");
 
-                // Export Message to JSON
-                char *msg = (char *) byteBuf.buffer;
-                msg[byteBuf.len] = '\0';
-                
-                json msg_json = json::parse(msg);
+                char *payload = (char *) byteBuf.buffer;
+                payload[byteBuf.len] = '\0';
 
-                std::cout << msg_json.dump(4) << std::endl;
+                fprintf(stdout, "%s\n", payload);
 
-                // Store msg json as BSM
-                for (auto obj : msg_json[0]["objects"]) { 
-
-                    BasicSafetyMessage_t* message = (BasicSafetyMessage_t*) calloc(1, sizeof(BasicSafetyMessage_t) );
-
-                    /**
-                     * Populate BSMcoreData 
-                     * 
-                     * NOTE: Following will be hardware detection hardware specific
-                    */
-
-                    // Cursed pointer magic
-                    uint8_t* object_id = reinterpret_cast<uint8_t *>(&obj["object_id"].get<std::string>()[0]);
-
-                    message->coreData.msgCnt = receivedCount;
-                    message->coreData.id.buf = object_id;
-                    message->coreData.id.size = sizeof(object_id);
-                    message->coreData.secMark = msg_json[0]["timestamp"];
-                    message->coreData.lat = obj["lat"];
-                    message->coreData.Long = obj["lon"];
-                    message->coreData.elev = 0; /** NOTE: AMAG does not give elevation, so set to 0 for all objects */
-                    message->coreData.heading = obj["heading"];
-
-
-                    /** TODO: */
-                    // Send message to ObjectDetectionComparisonPlugin
+                sendto(sockfd, (const char *) payload, byteBuf.len, MSG_CONFIRM,
+                    (const struct sockaddr *) &servaddr, sizeof(servaddr));
                 } 
+
+                fprintf(stdout, "Message sent!\n");
             }
 
             receiveSignal.notify_all();
